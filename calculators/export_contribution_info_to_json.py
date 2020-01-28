@@ -1,13 +1,20 @@
 import pandas
 
-FILE = "file:///home/bolun/Documents/cal-data.xlsx"
+CONTRIBUTION_NAMES = ["A-Contributions", "C-Contributions", "I-Contributions"]
+EXPENDITURE_NAMES = ["D-Expenditure", "G-Expenditure", "E-Expenditure"]
 
-A_SHEET = pandas.read_excel(FILE, sheet_name="A-Contributions")
-C_SHEET = pandas.read_excel(FILE, sheet_name="C-Contributions")
-I_SHEET = pandas.read_excel(FILE, sheet_name="I-Contributions")
-D_SHEET = pandas.read_excel(FILE, sheet_name="D-Expenditure")
-G_SHEET = pandas.read_excel(FILE, sheet_name="G-Expenditure")
-E_SHEET = pandas.read_excel(FILE, sheet_name="E-Expenditure")
+
+def load_sheets_from_years(years, sheet_names):
+    '''
+    Returns the specified sheets of the given year(s) (e.g 2020).
+    A list of the years and the sheet names are the argruments
+    '''
+    sheets = []
+    for year in years:
+        for sheet in sheet_names:
+            sheets.append(pandas.read_excel("../downloads/static/efile_SD_CSD_"
+                                            + str(year)+".xlsx", sheet))
+    return sheets
 
 
 def sum_of_sheet_columns(summed_column, *args):
@@ -21,7 +28,7 @@ def sum_of_sheet_columns(summed_column, *args):
     return total
 
 
-def sum_of_unique_sheet_columns(identifier_column, summed_column, *args):
+def unique_sheet_columns_sum(identifier_column, summed_column, *args):
     '''
     returns pandas series with the sum each identifier's column
     combined from every sheet. Takes *args of sheets and a string of
@@ -33,26 +40,29 @@ def sum_of_unique_sheet_columns(identifier_column, summed_column, *args):
             if dict_totals.get(identifier) is None:
                 dict_totals.update({identifier: sheet[summed_column].iloc[c]})
             else:
-                num = dict_totals.get(identifier)
-                + sheet[summed_column].iloc[c]
+                num = dict_totals.get(identifier)+sheet[summed_column].iloc[c]
                 dict_totals.update({identifier: num})
     return pandas.Series(dict_totals)
 
 
-total_contributions = sum_of_sheet_columns("Tran_Amt2", A_SHEET, C_SHEET, I_SHEET)
-total_expenditures = sum_of_sheet_columns("Amount", D_SHEET, G_SHEET, E_SHEET)
-expenditures_by_zip = sum_of_unique_sheet_columns("Tran_Zip4", "Tran_Amt2",
-                                                  A_SHEET, C_SHEET, I_SHEET)
-expenditures_by_occupation = sum_of_unique_sheet_columns("Tran_Occ", "Tran_Amt2",
-                                                         A_SHEET, C_SHEET, I_SHEET)
+contribution_sheets = load_sheets_from_years([2019, 2020], CONTRIBUTION_NAMES)
+expenditure_sheets = load_sheets_from_years([2019, 2020], EXPENDITURE_NAMES)
 
-expenditures_by_zip.to_json("expenditures_by_zip.json")
-expenditures_by_occupation.to_json("expenditures_by_occupation.json")
+total_contributions = sum_of_sheet_columns("Tran_Amt2", *contribution_sheets)
+total_expenditures = sum_of_sheet_columns("Amount", *expenditure_sheets)
+expenditures_by_zip = unique_sheet_columns_sum("Tran_Zip4", "Tran_Amt2",
+                                               *contribution_sheets)
+expenditures_by_occupation = unique_sheet_columns_sum("Tran_Occ", "Tran_Amt2",
+                                                      *contribution_sheets)
+
+expenditures_by_zip.to_json("../downloads/raw/expenditures_by_zip.json")
+expenditures_by_occupation.to_json("../downloads/raw/expenditures_by_occupation.json",
+                                   orient="columns")
 
 series_total_contributions = pandas.Series(total_contributions,
                                            index=["total_contributions"])
-series_total_contributions.to_json("total_contributions.json")
+series_total_contributions.to_json("../downloads/raw/total_contributions.json")
 
 series_total_expenditures = pandas.Series(total_expenditures,
                                           index=["total_expenditures"])
-series_total_expenditures.to_json("total_expenditures.json")
+series_total_expenditures.to_json("../downloads/raw/total_expenditures.json")
